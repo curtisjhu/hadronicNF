@@ -1,0 +1,19 @@
+config: 'config_nf_hadronic.yml'
+model: 'Recurrent NF'
+file_name: ['/global/cfs/projectdirs/m3443/data/ForHadronic/train_data/pimode/hadron_pi_mode.root']
+sample: 'hadronic'
+tree_name: 'output'
+
+### Branch names
+out_branch_names: ["particle_id", "particle_E", "particle_px", "particle_py", "particle_pz"]
+in_branch_names: ['incoming']
+truth_branch_names: []
+data_branch_names: []
+
+### Hyperparameters
+lr: 0.001
+batch_size: 16384
+num_layers: 2
+latent_size: 128
+num_bijectors: 20
+activation: 'relu'
