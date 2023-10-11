@@ -124,7 +124,7 @@ class Display:
 
     def generate_events(self, num_events, to_folder, silent=False, max_parts=50):
         count = 1
-        events_fn = 'events.csv'
+        events_fn = 'events.npy'
         in_fn = 'incoming.npy'
         invpartdict = dict((v, k) for k, v in self.partdict.items())
         in_vectors = self.c_cond_vectors
@@ -146,80 +146,75 @@ class Display:
         esave_path = os.path.join(to_folder, events_fn)
         isave_path = os.path.join(to_folder, in_fn)
 
-        with open(esave_path, 'w') as f:
-            out_vects = np.zeros((1, np.shape(in_vectors)[0], 5))
-            scaled_in_e = pscale(in_vectors[:,0] - shift, smax, smin)
-            scaled_in_p = pscale(in_vectors[:,1:], smax, -smax)
-            remaining_cond = np.concatenate((scaled_in_e[:, None], scaled_in_p), axis=1)
-            index = 1
-            while np.shape(remaining_cond)[0] > 0:
-                gen_cond = np.hstack((remaining_cond, index*index_vect))
-                gen_cond = tf.cast(tf.convert_to_tensor(gen_cond), 'float32')
-                cond_kwargs = dict([(f"b{idx}", {"conditional_input": gen_cond}) for idx in range(self.layers)])
-                #print("start sample", end="\r", flush=True)
-                sample = self.flow_model.sample((np.shape(remaining_cond)[0],), bijector_kwargs=cond_kwargs).numpy()
-                #print("end sample", end="\r", flush=True)
-                
-                partidxs = np.rint(unscale(sample[:,0], np.shape(list(self.partdict.values()))[0], 0))
-                partid = np.array([[invpartdict.get(partidx, 0)] for partidx in partidxs])
-                #print(partid[:10])
-                #print(partid)
-                #print(sample[:,1:])
-                #print(remaining_cond)
-                unscale_r_e = unscale(remaining_cond[:,0], smax, smin)
-                unscale_r_p = unscale(remaining_cond[:,1:], smax, -smax)
-                unscale_s_e = unscale(sample[:,1], smax, smin)
-                unscale_s_p = unscale(sample[:,2:], smax, -smax)
-
-                unscale_r_e = [unscale_r_e] - unscale_s_e
-                unscale_r_p = [unscale_r_p] - unscale_s_p
-
-                r_e = pscale(unscale_r_e, smax, smin)[0]
-                r_p = pscale(unscale_r_p, smax, -smax)[0]
-
-                remaining_cond = np.concatenate((r_e[:, None], r_p), axis=1)
-
-                # remaining_cond = [unscale(remaining_cond, smax, smin)] - unscale(sample[:,1:], smax, smin)
-                # remaining_cond = pscale(remaining_cond, smax, smin)[0]
+        out_vects = np.zeros((1, np.shape(in_vectors)[0], 5))
+        scaled_in_e = pscale(in_vectors[:,0] - shift, smax, smin)
+        scaled_in_p = pscale(in_vectors[:,1:], smax, -smax)
+        remaining_cond = np.concatenate((scaled_in_e[:, None], scaled_in_p), axis=1)
+        index = 1
+        while np.shape(remaining_cond)[0] > 0:
+            gen_cond = np.hstack((remaining_cond, index*index_vect))
+            gen_cond = tf.cast(tf.convert_to_tensor(gen_cond), 'float32')
+            cond_kwargs = dict([(f"b{idx}", {"conditional_input": gen_cond}) for idx in range(self.layers)])
+            #print("start sample", end="\r", flush=True)
+            sample = self.flow_model.sample((np.shape(remaining_cond)[0],), bijector_kwargs=cond_kwargs).numpy()
+            #print("end sample", end="\r", flush=True)
             
-                index = index+1
-                out_vects = np.concatenate((out_vects, [np.hstack((partid, np.concatenate((unscale_s_e[:, None], unscale_s_p), axis=1)))]), axis=0)
-                #print("out", out_vects[1:, 0, :])  #gets event at index 0
-                
+            partidxs = np.rint(unscale(sample[:,0], np.shape(list(self.partdict.values()))[0], 0))
+            partid = np.array([[invpartdict.get(partidx, 0)] for partidx in partidxs])
+            #print(partid[:10])
+            #print(partid)
+            #print(sample[:,1:])
+            #print(remaining_cond)
+            unscale_r_e = unscale(remaining_cond[:,0], smax, smin)
+            unscale_r_p = unscale(remaining_cond[:,1:], smax, -smax)
+            unscale_s_e = unscale(sample[:,1], smax, smin)
+            unscale_s_p = unscale(sample[:,2:], smax, -smax)
 
-                no_more_e = np.array([e < -0.99999 for e in remaining_cond[:,0]])
-                if index > max_parts:
-                    no_more_e = np.array([True for e in remaining_cond[:,0]])
-                #print(out_vects[1:])
-                #print("out", out_vects[1:,np.where(no_more_e)[0],:])
-                #print(index)
-                
-                #print(np.shape(out_vects[1:,no_more_e,:]))
-                no_more_e_out = out_vects[1:,no_more_e,:]
-                out_in = in_vectors[no_more_e,:]
-                #print("start for loop", end="\r", flush=True)
-                for i in np.arange(np.shape(out_vects[1:,no_more_e,:])[1]):
-                    event = no_more_e_out[:,i,:]
-                    #print("event", event[:-1])
-                    out_out_vects.append(event[:])
-                    out_out_in.append(out_in[i,:])
-                    #print(out_out_vects)
-                    np.savetxt(f, event[:], newline=';   ', footer='\n', comments='')
-                    pcounts = np.append(pcounts, np.shape(event)[0])
-                    event = np.array([])
-                #print("done for loop", end="\r", flush=True) 
-                out_vects = out_vects[:,~no_more_e,:]
-                if not silent:
-                    print(np.shape(out_vects), flush=True)
-                remaining_cond = remaining_cond[~no_more_e]
-                index_vect = index_vect[~no_more_e]
-                in_vectors = in_vectors[~no_more_e]
-                
-                #pcounts = np.append(pcounts, index)
-                if not silent:
-                    print(index, end="\r", flush=True)
-        f.close()
+            unscale_r_e = [unscale_r_e] - unscale_s_e
+            unscale_r_p = [unscale_r_p] - unscale_s_p
+
+            r_e = pscale(unscale_r_e, smax, smin)[0]
+            r_p = pscale(unscale_r_p, smax, -smax)[0]
+
+            remaining_cond = np.concatenate((r_e[:, None], r_p), axis=1)
+
+            # remaining_cond = [unscale(remaining_cond, smax, smin)] - unscale(sample[:,1:], smax, smin)
+            # remaining_cond = pscale(remaining_cond, smax, smin)[0]
+        
+            index = index+1
+            out_vects = np.concatenate((out_vects, [np.hstack((partid, np.concatenate((unscale_s_e[:, None], unscale_s_p), axis=1)))]), axis=0)
+            #print("out", out_vects[1:, 0, :])  #gets event at index 0
+            
+
+            no_more_e = np.array([e < -0.99999 for e in remaining_cond[:,0]])
+            if index > max_parts:
+                no_more_e = np.array([True for e in remaining_cond[:,0]])
+            #print(out_vects[1:])
+            #print("out", out_vects[1:,np.where(no_more_e)[0],:])
+            #print(index)
+            
+            #print(np.shape(out_vects[1:,no_more_e,:]))
+            no_more_e_out = out_vects[1:,no_more_e,:].swapaxes(0,1)
+            out_in = in_vectors[no_more_e,:]
+
+    
+            pcount = [index-1 for i in np.arange(np.shape(no_more_e_out)[0])]
+
+            out_out_vects.extend(no_more_e_out)
+            out_out_in.extend(out_in)
+            pcounts = np.append(pcounts, pcount)
+
+            out_vects = out_vects[:,~no_more_e,:]
+            if not silent:
+                print(np.shape(out_vects), flush=True)
+            remaining_cond = remaining_cond[~no_more_e]
+            index_vect = index_vect[~no_more_e]
+            in_vectors = in_vectors[~no_more_e]
+            
+            if not silent:
+                print(index, end="\r", flush=True)
         np.save(isave_path, out_out_in)
+        np.save(esave_path, np.array(out_out_vects, dtype=object), allow_pickle=True)
         self.g_events = out_out_vects
         self.g_counts = pcounts
         self.g_in = out_out_in
@@ -229,21 +224,11 @@ class Display:
     def load_gen(self, from_folder):
         out_vects = []
         i=0
-        events_fn = 'events.csv'
+        events_fn = 'events.npy'
         in_fn = 'incoming.npy'
         esave_path = os.path.join(from_folder, events_fn)
         isave_path = os.path.join(from_folder, in_fn)
-        with open(esave_path, 'r') as f:
-            for line in f:
-                event_str = line.split(';   ')
-                if i==0:
-                    event_str = event_str[:-1]
-                    i = 1
-                else:
-                    event_str = event_str[1:-1]
-                event = np.array([[float(v) for v in s.split()] for s in event_str])
-                out_vects.append(event)
-        out_vects = out_vects[:-1]
+        out_vects = np.load(esave_path, allow_pickle=True)
         pcounts = np.array([int(np.shape(event)[0]) for event in out_vects])
         g_in = np.load(isave_path)
         self.g_events = out_vects
@@ -253,17 +238,19 @@ class Display:
         return out_vects, pcounts, g_in
 
 
-    def make_graphs(self, img_folder, out_out_vects=None, gcounts=None, scale_by_target=False, use_prop=False, particle_num=0, ecut_off=100000):
+    def make_graphs(self, img_folder, out_out_vects=None, gcounts=None, scale_by_target=False, use_prop=False, particle_num=0, ecut_off=100000, cond_only = False):
         if (out_out_vects is None) or (gcounts is None):
             out_out_vects = self.g_events
             gcounts = self.g_counts
-            gmask = self.g_mask
+            gmask1 = self.g_mask
         else:
-            gmask = [True for i in range(len(out_out_vects))]
+            gmask1 = [True for i in range(len(out_out_vects))]
         config = dict(histtype='step', lw=2)
         os.makedirs(img_folder, exist_ok=True)
         pn = particle_num
-
+        gmask2 = [len(event) > np.abs(pn) for event in self.g_events]
+        gmask = [m1 and m2 for m1, m2 in zip(gmask1, gmask2)]
+        if cond_only: scale_by_target = True
         fontsize=16
         minor_size=14
         leg_size=12
@@ -277,9 +264,9 @@ class Display:
         gpx = leading[:,2]
         gpy = leading[:,3]
         gpz = leading[:,4]
-        cmask = [len(event) > pn for event in self.c_df["particle_E"]]
+        cmask = [len(event) > np.abs(pn) for event in self.c_df["particle_E"]]
         cmask = [m1 and m2 for m1, m2 in zip(self.c_mask, cmask)]
-        ctype = [event[0] for m, event in zip(cmask[:event_count], self.c_df["particle_id"][:event_count]) if m]
+        ctype = [event[pn] for m, event in zip(cmask[:event_count], self.c_df["particle_id"][:event_count]) if m]
         cidx = np.array([self.partdict.get(id, 0) for id in ctype])
         ccounts = [count for m, count in zip(cmask[:event_count], self.c_counts[:event_count]) if m]
         cle = [event[pn] for m, event in zip(cmask[:event_count], self.c_df["particle_E"][:event_count]) if m]
@@ -317,16 +304,16 @@ class Display:
             max_v = int(max(max_v, np.max(a[1])))
             if use_prop:
                 aa, nbins, _ = ax.hist(a[1], bins=max_v + 1, range=[0,max_v + 1], label='Target', weights=np.ones(len(a[1])) / len(a[1]), **config)
-                ax.hist(a[0], bins=nbins, range=[0,max_v + 1], label='CNF', weights=np.ones(len(a[0])) / len(a[0]), **config)
+                if not cond_only: ax.hist(a[0], bins=nbins, range=[0,max_v + 1], label='CNF', weights=np.ones(len(a[0])) / len(a[0]), **config)
             else:
                 aa, nbins, _ = ax.hist(a[1], bins=max_v + 1, range=[0,max_v + 1], label='Target', **config)
-                ax.hist(a[0], bins=nbins, range=[0,max_v + 1], label='CNF', **config)
+                if not cond_only: ax.hist(a[0], bins=nbins, range=[0,max_v + 1], label='CNF', **config)
             #count_gen, nbins, _ = ax.hist(pcounts, bins=max_count, range=[0,max_count], label='CNF', **config, weights=np.ones(pcounts.shape[0])/pcounts.shape[0])
             #ax.hist(ccounts, bins=nbins, range=[0,max_count], label='Target', **config, weights=np.ones(pcounts.shape[0])/pcounts.shape[0])
             ax.tick_params(width=2, grid_alpha=0.5, labelsize=minor_size)
             ax.set_xlabel(s_graph_labels[i], fontsize=fontsize)
             ax.set_ylabel(y_label, fontsize=fontsize)
-            ax.legend(fontsize=leg_size)
+            if not cond_only: ax.legend(fontsize=leg_size)
             plt.savefig(save_path, bbox_inches='tight')
             ax.clear()
 
@@ -340,15 +327,15 @@ class Display:
             if i==0:
                 max_v = min(max_v, ecut_off)
             if use_prop:
-                ax.hist(a[1], bins=40, range=[min_v, max_v], weights=np.ones(len(a[1])) / len(a[1]), label='Target', **config)
-                ax.hist(a[0], bins=40, range=[min_v, max_v], weights=np.ones(len(a[0])) / len(a[0]), label='CNF', **config)
+                ax.hist(a[1], bins=100, range=[min_v, max_v], weights=np.ones(len(a[1])) / len(a[1]), label='Target', **config)
+                if not cond_only: ax.hist(a[0], bins=100, range=[min_v, max_v], weights=np.ones(len(a[0])) / len(a[0]), label='CNF', **config)
             else:
-                ax.hist(a[1], bins=40, range=[min_v, max_v], label='Target', **config)
-                ax.hist(a[0], bins=40, range=[min_v, max_v], label='CNF', **config)
+                ax.hist(a[1], bins=100, range=[min_v, max_v], label='Target', **config)
+                if not cond_only: ax.hist(a[0], bins=100, range=[min_v, max_v], label='CNF', **config)
             ax.tick_params(width=2, grid_alpha=0.5, labelsize=minor_size)
             ax.set_xlabel(graph_labels[i], fontsize=fontsize)
             ax.set_ylabel(y_label, fontsize=fontsize)
-            ax.legend(fontsize=leg_size)
+            if not cond_only: ax.legend(fontsize=leg_size)
             plt.savefig(save_path, bbox_inches='tight')
             ax.clear()
 
@@ -378,7 +365,7 @@ class Display:
 
     def clear_gmask(self):
         self.g_mask = [True for i in range(len(self.g_counts))]
-        print("CMask cleared.")
+        print("GMask cleared.")
 
         
 
@@ -388,67 +375,59 @@ class Display:
         os.makedirs(graph_folder, exist_ok=True)
         num_cond = np.shape(self.c_cond_vectors)[0]
         counts = np.rint(np.linspace(1, num_cond, sample_counts))
-        out_vects = []
+        out_vects_full = []
+        out_vects_interval = []
+        out_vects_throughput = []
         for count in counts:
-            out_vect = []
+            out_vect_full = []
+            out_vect_interval = []
+            out_vect_throughput = []
             for i in np.arange(runcount):
                 start_time = time.time()
-                _,_ = self.generate_events(int(count), to_file, silent=True)
+                events,_,_ = self.generate_events(int(count), to_file, silent=True)
                 runtime = time.time() - start_time
-                if mode=='total time':
-                    out_vect.append(runtime)
-                elif mode=='per event':
-                    out_vect.append(runtime/count)
-                elif mode=='throughput':
-                    out_vect.append(count/runtime)
-                else:
-                    print('Mode not recognized, defaulting to total time')
-                    out_vect.append(runtime)
+                out_vect_full.append(runtime)
+                out_vect_interval.append(runtime/count)
+                out_vect_throughput.append(count/runtime)
+                print(events[0][0])
                 print(runtime, end='\r', flush=True)
-            out_vects.append(out_vect)
-        times = np.array(out_vects)
-        time_av = np.average(times, axis=1)
-        fig = plt.figure()
-        ax= fig.add_subplot()
-        ax.plot(counts, time_av, lw=2)
-        ax.tick_params(width=2, grid_alpha=0.5, labelsize=minor_size)
-        ax.set_xlabel('Number of events generated', fontsize=fontsize)
-        if mode=='total time':
-            ax.set_ylabel('Time taken to generate (s)', fontsize=fontsize)
-            save_path = os.path.join(graph_folder, 'times.png')
-        elif mode=='per event':
-            ax.set_ylabel('Seconds per event (s/event)', fontsize=fontsize)
-            save_path = os.path.join(graph_folder, 'interval.png')
-        elif mode=='throughput':
-            ax.set_ylabel('Throughput (events/s)', fontsize=fontsize)
-            save_path = os.path.join(graph_folder, 'throughput.png')
-        else:
-            ax.set_ylabel('Time taken to generate (s)', fontsize=fontsize)
-            save_path = os.path.join(graph_folder, 'times.png')
-        plt.savefig(save_path, bbox_inches='tight')
+            out_vects_full.append(out_vect_full)
+            out_vects_interval.append(out_vect_interval)
+            out_vects_throughput.append(out_vect_throughput)
+        full = np.array(out_vects_full)
+        full_av = np.average(full, axis=1)
+        interval = np.array(out_vects_interval)
+        interval_av = np.average(interval, axis=1)
+        throughput = np.array(out_vects_throughput)
+        throughput_av = np.average(throughput, axis=1)
+        data = [full, interval, throughput]
+        axes = ['Time taken to generate (s)', 'Seconds per event (s/event)', 'Throughput (events/s)']
+        labels = ['times.png', 'interval.png', 'throughput.png']
+        for i, d in enumerate(data):
+            fig = plt.figure()
+            ax= fig.add_subplot()
+            ax.plot(counts[1:], d[1:], lw=2)
+            ax.tick_params(width=2, grid_alpha=0.5, labelsize=minor_size)
+            ax.set_xlabel('Number of events generated', fontsize=fontsize)
+            ax.set_ylabel(axes[i], fontsize=fontsize)
+            save_path = os.path.join(graph_folder, labels[i])
+            plt.savefig(save_path, bbox_inches='tight')
         print('Saved to: ', save_path)
         ax.clear()
         plt.close()
-        self.times = times
+        self.times=data
         
 
 #EXAMPLE
-#MAKE SURE TO CHANGE THE PATHS
 
 if __name__ == "__main__":
     mpath = '/global/homes/a/achen899/normalizing-flow/train_out/pi_mode_20_bijectors'
     cpath = '/global/homes/a/achen899/normalizing-flow/gan4hep/nf/config_nf_hadronic.yml'
     dpath = '/global/cfs/cdirs/m3443/data/ForHadronic/train_data/pimode/pimode.hkl'
 
-    hadron_e_display = Display(mpath, cpath, dpath, max_epochs=1200)
+    hadron_e_display = Display(mpath, cpath, dpath, max_epochs=1200, epoch=163)
     hadron_e_display.load_comparison("/global/cfs/projectdirs/m3443/data/ForHadronic/train_data/pimode/hadron_pi_mode.root")
     print("Comparison data loaded.")
-    events, counts, g_in = hadron_e_display.generate_events(100000, "out_nf_pi_20_b_163", max_parts=40)
-    print("Generated: ", events[0])
-    hadron_e_display.make_graphs("/global/homes/a/achen899/normalizing-flow/gan4hep/nf/hadronic_graph", events, counts, scale_by_target=True)
-    c_mask = [c > 15 for c in hadron_e_display.c_counts]
-    hadron_e_display.apply_cmask(c_mask)
-    g_mask = [c > 15 for c in counts]
-    hadron_e_display.apply_gmask(g_mask)
-
-    hadron_e_display.make_graphs("/global/homes/a/achen899/normalizing-flow/gan4hep/nf/hadronic_graph_inv/pi_mode_20_b/163/test", particle_num=4, ecut_off = 10000)
+    hadron_e_display.time_generate_events("/pscratch/sd/a/achen899/gen2", 3, 
+                                          "/global/homes/a/achen899/normalizing-flow/gan4hep/nf/hadronic_graph_inv/pi_mode_20_b/time", 
+                                          sample_counts=40, mode='per event')
