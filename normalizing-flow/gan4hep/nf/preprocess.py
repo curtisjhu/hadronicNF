@@ -48,6 +48,7 @@ def read_data_root_hadronic(file_name, tree_name,
 
     for i, event in enumerate(truth):
         to_pad = np.stack(event).T
+        to_pad = to_pad[to_pad[:,1].argsort()[::-1]] #Sort by energy
         pad = np.zeros((m-nparts[i], 5))
         to_pad = np.concatenate((to_pad, pad))
         arr_pad.append(to_pad)

@@ -12,4 +12,4 @@
 
 export SLURM_CPU_BIND="cores"
 
-srun python /gan4hep/nf/train_cond_hadronic.py --config_file "/gan4hep/nf/config_nf_hadronic.yml" --log-dir "/train_out/pi_mode_20_bijectors" --data-dir "/global/cfs/cdirs/m3443/data/ForHadronic/train_data/pimode/pimode.hkl" --epochs 1200
+srun python /gan4hep/nf/train_cond_hadronic.py --config_file "/gan4hep/nf/config_nf_hadronic.yml" --log-dir "/pscratch/sd/a/achen899/train_out/pi_20_b_sorted" --data-dir "/pscratch/sd/a/achen899/train_data/pimode/pimode_sorted.hkl" --epochs 1200
