@@ -7,9 +7,10 @@
 #SBATCH -c 32
 #SBATCH --gpus-per-task=1
 #SBATCH --mail-type=begin,end,fail
-#SBATCH --mail-user=achen8998@berkeley.edu
+#SBATCH --mail-user=curtisjhu@berkeley.edu
 #SBATCH -L scratch
 
 export SLURM_CPU_BIND="cores"
 
-srun python /gan4hep/nf/train_cond_hadronic.py --config_file "/gan4hep/nf/config_nf_hadronic.yml" --log-dir "/pscratch/sd/a/achen899/train_out/pi_20_b_sorted" --data-dir "/pscratch/sd/a/achen899/train_data/pimode/pimode_sorted.hkl" --epochs 1200
+module load cudnn
+srun python ./gan4hep/nf/train_cond_hadronic.py --config_file "./gan4hep/nf/config_nf_hadronic.yml" --log-dir "/global/homes/c/curtis/code/normalizing-flow/train_out/pi_mode_20_bijectors" --data-dir "/global/cfs/cdirs/m3443/data/ForHadronic/train_data/pimode/pimode.hkl" --epochs 250
