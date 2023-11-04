@@ -2,5 +2,7 @@ train_data
 __pycache__
 *.root
 out_nf
-grapher
+**/grapher.ipynb
+**slurm-*
+**/trained_results
 
