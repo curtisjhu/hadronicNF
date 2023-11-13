@@ -13,4 +13,4 @@
 export SLURM_CPU_BIND="cores"
 
 module load cudnn
-srun python ./gan4hep/nf/train_cond_hadronic.py --config_file "./gan4hep/nf/config_nf_hadronic.yml" --log-dir "./train_out/pi_mode_20_bijectors" --data-dir "/global/cfs/cdirs/m3443/data/ForHadronic/train_data/pimode/pimode.hkl" --epochs 500
+srun python ./gan4hep/nf/train_cond_hadronic.py --config_file "./gan4hep/nf/config_nf_hadronic.yml" --log-dir "./train_out/pi_mode_20_bijectors" --data-dir "/global/cfs/cdirs/m3443/data/ForHadronic/train_data/pimode/pimode.hkl" --epochs 1

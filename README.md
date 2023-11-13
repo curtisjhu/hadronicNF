@@ -38,3 +38,11 @@ I think this should work. Have sortof tested it on my own computer.
 I'm not sure how much we should follow CI/CD pipelines (creating testing, beta, alphas, releases?)
 
 
+## Linux commands
+```
+top
+free
+uname -a
+squeue -u [userid]
+showquota
+```
