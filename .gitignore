@@ -2,7 +2,6 @@ train_data
 __pycache__
 *.root
 out_nf
-**/grapher.ipynb
 **slurm-*
 **/trained_results
 hadronic_*
