@@ -790,4 +790,11 @@ class InputScaler:
         print("Min and Max for inputs: {",\
             ", ".join(["{:.6f}".format(x) for x in self.scaler.data_min_]),\
             ", ".join(["{:.6f}".format(x) for x in self.scaler.data_max_]), "}")
-        
+
+
+if __name__ == "__main__":
+    file_name = "/global/cfs/projectdirs/m3443/data/ForHadronic/train_data/pimode/hadron_pi_mode.root"
+    tree_name = "output"
+    out_branch_names = ["particle_id", "particle_E", "particle_px", "particle_py", "particle_pz"]
+    in_branch_names = ["incoming"]
+    data, scale, label, partdict = read_data_root_hadronic(file_name, tree_name, out_branch_names, in_branch_names=in_branch_names, test_frac=0.01, val_frac=0.01)

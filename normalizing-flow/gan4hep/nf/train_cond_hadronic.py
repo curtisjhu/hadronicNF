@@ -353,8 +353,11 @@ if __name__ == '__main__':
     #print(train_truth)
     
     maf = create_conditional_flow(hidden_shape, layers, 
-                                  input_dim=dim_truth, conditional_event_shape=(dim_cond,), out_dim=2,
+                                  input_dim=dim_truth, conditional_event_shape=(dim_cond-1,), out_dim=2,
                                   activation=activation)
     
     plot_config = {'labels': out_branch_names}
+    train_truth=train_truth[:,1:]
+    test_truth=test_truth[:,1:]
+    val_truth=val_truth[:,1:]
     train(train_truth, train_in, test_truth, test_in, maf, lr, batch_size, layers, max_epochs, outdir, plot_config, partdict, scale, val_truth=val_truth, val_in=val_in)

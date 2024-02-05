@@ -81,8 +81,51 @@ class Display:
             print("Loaded checkpoint from {}".format(latest_ckpt))
         else:
             print("No checkpoints found, please train model first.")
+    
+    def load_hickle(self, file_name):
+        hicklefile = dict(hkl.load("/global/cfs/projectdirs/m3443/data/ForHadronic/train_data/pi_sorted_new.hkl"))
+        _, _, val_in, val_truth, _, _ = hicklefile['data']
+        partdict = hicklefile["particle_dictionary"]
+        maxval, bias = hicklefile["scale"]
+        
+        # val_in format: (E px py pz idx)
+        val_in[:,0] = preprocess.unscale(val_in[:,0], maxval, 0)
+        val_in[:,1:4] = preprocess.unscale(val_in[:,1:4], maxval, -maxval)
+        cond_vectors = val_in[:, :4]
+        
+        # sketchy but take the index 1 events and step back one, which should give the "particle count"
+        true_p_counts = np.diff(np.argwhere(val_in[:, 4] == 1).ravel())
+        
+        # val_truth format: (id E px py pz)
+        
+        split_indices = np.where(val_in[:,4] == 1)[0][1:] # indices to split the array into individual events
+        
+        
+        # unscale the values
+        val_truth[:, 0] = preprocess.unscale(val_truth[:,0], len(partdict), 0)
+        val_truth[:, 1] = preprocess.unscale(val_truth[:,1], maxval, 0)
+        val_truth[:, 2:] = preprocess.unscale(val_truth[:,2:], maxval, -maxval)
+        
+        # replace the index with actual particle id
+        p_id_indices = np.array(val_truth[:, 0], dtype=np.int32)
+        p_id_keys = np.array(list(partdict.keys()))
+        
+        p_id = p_id_keys[p_id_indices]
+        
+        df = pd.DataFrame({
+            "particle_id": np.split(p_id, split_indices),
+            "particle_E": np.split(val_truth[:,1], split_indices),
+            "particle_px": np.split(val_truth[:,2], split_indices),
+            "particle_py": np.split(val_truth[:,3], split_indices),
+            "particle_pz": np.split(val_truth[:,4], split_indices), # BUG HERE, INCOMING
+        })
 
-
+        self.c_cond_vectors = cond_vectors[:]
+        self.c_counts = true_p_counts
+        self.c_df = df
+        self.c_mask = [True for i in range(len(true_p_counts))]
+        
+            
 
     def load_comparison(self, file_name):
         tree_name = 'output'
@@ -108,7 +151,7 @@ class Display:
         #print(df["incoming"][0])
         #print(df["particle_E"][0])
         cond_vectors = np.zeros(4)
-
+        
         cond_vectors = np.array([np.asarray(a) for a in df["incoming"].values])
         true_p_counts = np.array([len(a) for a in df["particle_E"]])
         cle = [event[0] for event in df["particle_E"][:]]
@@ -119,8 +162,7 @@ class Display:
         self.c_cond_vectors = cond_vectors[:]
         self.c_counts = true_p_counts
         self.c_df = df
-        self.c_mask = [True for i in range(len(true_p_counts))]
-
+        self.c_mask = [True for i in range(len(true_p_counts))]    
 
     def generate_events(self, num_events, to_folder, silent=False, max_parts=50):
         count = 1
@@ -313,7 +355,7 @@ class Display:
             ax.tick_params(width=2, grid_alpha=0.5, labelsize=minor_size)
             ax.set_xlabel(s_graph_labels[i], fontsize=fontsize)
             ax.set_ylabel(y_label, fontsize=fontsize)
-            if not cond_only: ax.legend(fontsize=leg_size)
+            if not cond_only: ax.legend(fontsize=leg_size, loc="upper right")
             plt.savefig(save_path, bbox_inches='tight')
             ax.clear()
 
@@ -335,7 +377,7 @@ class Display:
             ax.tick_params(width=2, grid_alpha=0.5, labelsize=minor_size)
             ax.set_xlabel(graph_labels[i], fontsize=fontsize)
             ax.set_ylabel(y_label, fontsize=fontsize)
-            if not cond_only: ax.legend(fontsize=leg_size)
+            if not cond_only: ax.legend(fontsize=leg_size, loc="upper right" )
             plt.savefig(save_path, bbox_inches='tight')
             ax.clear()
 
